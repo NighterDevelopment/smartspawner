@@ -1266,7 +1266,7 @@ public class SpawnerGuiViewManager implements Listener {
         // This mirrors the logic from SpawnerMenuUI.calculateInitialTimerValue() to ensure consistency
         // between initial display and ongoing timer updates
         boolean isSpawnerInactive = !spawner.getSpawnerActive() ||
-            (spawner.getSpawnerStop() && timeElapsed > cachedDelay * 2); // Only inactive if stopped for more than 2 cycles
+            (!spawner.isActivated() && timeElapsed > cachedDelay * 2); // Only inactive if stopped for more than 2 cycles
 
         if (isSpawnerInactive) {
             return -1;

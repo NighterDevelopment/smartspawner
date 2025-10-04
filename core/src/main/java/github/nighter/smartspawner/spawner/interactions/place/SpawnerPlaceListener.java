@@ -282,6 +282,11 @@ public class SpawnerPlaceListener implements Listener {
         spawner.setSpawnerActive(true);
         spawner.setStackSize(stackSize);
         
+        // Sync data from the physical block spawner if available
+        if (state instanceof CreatureSpawner creatureSpawner) {
+            spawner.syncFromBlock(creatureSpawner);
+        }
+        
         // Track player interaction for last interaction field
         spawner.updateLastInteractedPlayer(player.getName());
 

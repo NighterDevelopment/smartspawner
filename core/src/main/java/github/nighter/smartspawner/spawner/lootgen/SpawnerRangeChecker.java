@@ -12,6 +12,42 @@ import org.bukkit.entity.Player;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * SpawnerRangeChecker manages spawner activation based on player proximity.
+ * 
+ * <h2>Purpose</h2>
+ * <p>
+ * This class monitors virtual spawners and activates/deactivates them based on whether
+ * players are within the required range. This is essential for performance optimization
+ * as it prevents inactive spawners from consuming resources.
+ * </p>
+ * 
+ * <h2>How It Works</h2>
+ * <ol>
+ *   <li>Periodically checks all spawners (every 1 second)</li>
+ *   <li>For each spawner, checks if any players are within {@link SpawnerData#getRequiredPlayerRange()}</li>
+ *   <li>Updates spawner activation state via {@link SpawnerData#isActivated()}</li>
+ *   <li>Starts/stops loot generation tasks based on activation state</li>
+ * </ol>
+ * 
+ * <h2>Integration with Spawner Interface</h2>
+ * <p>
+ * Uses the standard Bukkit {@link org.bukkit.spawner.Spawner} interface methods:
+ * </p>
+ * <ul>
+ *   <li>{@link SpawnerData#getRequiredPlayerRange()} - Distance check for activation</li>
+ *   <li>{@link SpawnerData#isActivated()} - Current activation state</li>
+ * </ul>
+ * 
+ * <h2>Thread Safety</h2>
+ * <p>
+ * Uses Folia-compatible region-specific scheduling to ensure thread safety when checking
+ * for nearby players in the spawner's region.
+ * </p>
+ * 
+ * @see SpawnerData
+ * @see SpawnerLootGenerator
+ */
 public class SpawnerRangeChecker {
     private static final long CHECK_INTERVAL = 20L; // 1 second in ticks
     private final SmartSpawner plugin;
@@ -50,11 +86,12 @@ public class SpawnerRangeChecker {
         // Schedule the actual entity checking in the correct region
         Scheduler.runLocationTask(spawnerLoc, () -> {
             boolean playerFound = isPlayerInRange(spawner, spawnerLoc, world);
-            boolean shouldStop = !playerFound;
+            boolean shouldBeActivated = playerFound;
 
-            if (spawner.getSpawnerStop() != shouldStop) {
-                spawner.setSpawnerStop(shouldStop);
-                handleSpawnerStateChange(spawner, shouldStop);
+            // Check if activation state needs to change
+            if (spawner.isActivated() != shouldBeActivated) {
+                spawner.setSpawnerStop(!shouldBeActivated);
+                handleSpawnerStateChange(spawner, !shouldBeActivated);
             }
         });
     }
@@ -65,16 +102,17 @@ public class SpawnerRangeChecker {
         if (world == null) return;
 
         boolean playerFound = isPlayerInRange(spawner, spawnerLoc, world);
-        boolean shouldStop = !playerFound;
+        boolean shouldBeActivated = playerFound;
 
-        if (spawner.getSpawnerStop() != shouldStop) {
-            spawner.setSpawnerStop(shouldStop);
-            handleSpawnerStateChange(spawner, shouldStop);
+        // Check if activation state needs to change
+        if (spawner.isActivated() != shouldBeActivated) {
+            spawner.setSpawnerStop(!shouldBeActivated);
+            handleSpawnerStateChange(spawner, !shouldBeActivated);
         }
     }
 
     private boolean isPlayerInRange(SpawnerData spawner, Location spawnerLoc, World world) {
-        int range = spawner.getSpawnerRange();
+        int range = spawner.getRequiredPlayerRange();
         double rangeSquared = range * range;
 
         // In Folia, we're now running this in the correct region thread,
@@ -129,7 +167,7 @@ public class SpawnerRangeChecker {
         spawner.setLastSpawnTime(currentTime);
         
         Scheduler.Task task = Scheduler.runTaskTimer(() -> {
-            if (!spawner.getSpawnerStop()) {
+            if (spawner.isActivated()) {
                 spawnerLootGenerator.spawnLootToSpawner(spawner);
             }
         }, spawner.getSpawnDelay(), spawner.getSpawnDelay()); // Start after one delay period

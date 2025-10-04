@@ -299,11 +299,11 @@ public class ListSubCommand extends BaseSubCommand {
         // Apply filtering
         if (filter == FilterOption.ACTIVE) {
             worldSpawners = worldSpawners.stream()
-                    .filter(spawner -> !spawner.getSpawnerStop())
+                    .filter(SpawnerData::isActivated)
                     .collect(Collectors.toList());
         } else if (filter == FilterOption.INACTIVE) {
             worldSpawners = worldSpawners.stream()
-                    .filter(SpawnerData::getSpawnerStop)
+                    .filter(spawner -> !spawner.isActivated())
                     .collect(Collectors.toList());
         }
 
@@ -481,7 +481,7 @@ public class ListSubCommand extends BaseSubCommand {
         placeholders.put("size", String.valueOf(spawner.getStackSize()));
 
         // Add status
-        if (spawner.getSpawnerStop()) {
+        if (!spawner.isActivated()) {
             placeholders.put("status_color", "&#ff6b6b");
             placeholders.put("status_text", "Inactive");
         } else {

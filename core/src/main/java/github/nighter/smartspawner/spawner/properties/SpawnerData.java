@@ -24,6 +24,69 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+/**
+ * SpawnerData represents a VIRTUAL spawner with enhanced functionality.
+ * 
+ * <h2>Virtual Spawner vs Block-Based Spawner</h2>
+ * <p>
+ * This class implements {@link org.bukkit.spawner.Spawner} but represents a <b>virtual</b> spawner,
+ * not the physical spawner block itself. Key differences:
+ * </p>
+ * 
+ * <h3>Virtual Spawner (SpawnerData):</h3>
+ * <ul>
+ *   <li>Stores data independently from the physical block</li>
+ *   <li>Generates loot items instead of spawning entities</li>
+ *   <li>Supports stackable spawners (multiple spawners in one block)</li>
+ *   <li>Has virtual inventory for loot storage</li>
+ *   <li>Can be enhanced with experience, upgrades, and custom features</li>
+ * </ul>
+ * 
+ * <h3>Block-Based Spawner (org.bukkit.spawner.Spawner):</h3>
+ * <ul>
+ *   <li>Data tied directly to the spawner block</li>
+ *   <li>Spawns actual entities in the world</li>
+ *   <li>One spawner per block</li>
+ *   <li>Standard Minecraft spawner behavior</li>
+ * </ul>
+ * 
+ * <h2>Spawner Interface Implementation</h2>
+ * <p>
+ * While this class implements {@link org.bukkit.spawner.Spawner} for API compatibility,
+ * some methods have special behavior for virtual spawners:
+ * </p>
+ * <ul>
+ *   <li>{@link #getSpawnRange()} - Returns default value, not used for loot generation</li>
+ *   <li>{@link #setSpawnRange(int)} - No-op, spawn range not applicable to virtual spawners</li>
+ *   <li>{@link #getDelay()} - Returns spawn delay in ticks (converted from internal milliseconds)</li>
+ *   <li>{@link #getRequiredPlayerRange()} - Distance required for activation (formerly spawnerRange)</li>
+ *   <li>{@link #isActivated()} - True when players are in range (inverse of spawnerStop)</li>
+ * </ul>
+ * 
+ * <h2>Activation System</h2>
+ * <p>
+ * Spawner activation is managed by {@link github.nighter.smartspawner.spawner.lootgen.SpawnerRangeChecker}:
+ * </p>
+ * <ul>
+ *   <li>Checks if players are within {@link #getRequiredPlayerRange()}</li>
+ *   <li>Sets activation state via {@link #isActivated()}</li>
+ *   <li>When activated, loot generation tasks are started</li>
+ *   <li>When deactivated, tasks are stopped to save resources</li>
+ * </ul>
+ * 
+ * <h2>Migration Notes</h2>
+ * <p>
+ * For backward compatibility, deprecated methods are provided:
+ * </p>
+ * <ul>
+ *   <li>{@code getSpawnerRange()} → use {@link #getRequiredPlayerRange()}</li>
+ *   <li>{@code getSpawnerStop()} → use {@code !isActivated()}</li>
+ * </ul>
+ * 
+ * @see org.bukkit.spawner.Spawner
+ * @see github.nighter.smartspawner.spawner.lootgen.SpawnerRangeChecker
+ * @see github.nighter.smartspawner.spawner.lootgen.SpawnerLootGenerator
+ */
 public class SpawnerData implements Spawner {
     @Getter
     private final SmartSpawner plugin;
@@ -615,7 +678,7 @@ public class SpawnerData implements Spawner {
     @Nullable
     @Override
     public EntityType getSpawnedType() {
-        return null;
+        return this.entityType;
     }
 
     /**
@@ -626,7 +689,9 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void setSpawnedType(@Nullable EntityType creatureType) {
-
+        if (creatureType != null) {
+            setEntityType(creatureType);
+        }
     }
 
     /**
@@ -638,7 +703,8 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public int getDelay() {
-        return 0;
+        // Convert milliseconds to ticks (1 tick = 50ms)
+        return (int) (this.spawnDelay / 50L);
     }
 
     /**
@@ -651,7 +717,8 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void setDelay(int delay) {
-
+        // Convert ticks to milliseconds (1 tick = 50ms)
+        this.spawnDelay = delay * 50L;
     }
 
     /**
@@ -668,7 +735,7 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public int getRequiredPlayerRange() {
-        return 0;
+        return this.spawnerRange != null ? this.spawnerRange : 16;
     }
 
     /**
@@ -683,7 +750,7 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void setRequiredPlayerRange(int requiredPlayerRange) {
-
+        this.spawnerRange = requiredPlayerRange;
     }
 
     /**
@@ -702,7 +769,9 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public int getSpawnRange() {
-        return 0;
+        // This spawner is virtual and doesn't actually spawn entities in the world,
+        // so we return a default value. The actual spawning is handled by loot generation.
+        return 4;
     }
 
     /**
@@ -714,7 +783,9 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void setSpawnRange(int spawnRange) {
-
+        // This spawner is virtual and doesn't actually spawn entities in the world.
+        // Spawn range setting is not applicable to virtual spawners.
+        // This is a no-op implementation to satisfy the Spawner interface.
     }
 
     /**
@@ -935,7 +1006,10 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public boolean isActivated() {
-        return false;
+        // spawnerStop == true means no players in range (stopped)
+        // spawnerStop == false means players in range (activated)
+        // So isActivated is the inverse of spawnerStop
+        return !this.spawnerStop;
     }
 
     /**
@@ -943,7 +1017,8 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void resetTimer() {
-
+        // Reset the timer to current time, which will restart the delay countdown
+        this.lastSpawnTime = System.currentTimeMillis();
     }
 
     /**
@@ -958,6 +1033,132 @@ public class SpawnerData implements Spawner {
      */
     @Override
     public void setSpawnedItem(@NotNull ItemStack itemStack) {
+        // Virtual spawner doesn't spawn items directly, no-op
+    }
 
+    // ==================== Additional Helper Methods ====================
+    // These methods provide convenience access and maintain compatibility
+    // with existing code while using the Spawner interface internally
+
+    /**
+     * Legacy method - use getRequiredPlayerRange() instead.
+     * @deprecated Use {@link #getRequiredPlayerRange()} for Bukkit compatibility
+     */
+    @Deprecated
+    public Integer getSpawnerRange() {
+        return getRequiredPlayerRange();
+    }
+
+    /**
+     * Legacy method - use setRequiredPlayerRange() instead.
+     * @deprecated Use {@link #setRequiredPlayerRange(int)} for Bukkit compatibility
+     */
+    @Deprecated
+    public void setSpawnerRange(Integer range) {
+        if (range != null) {
+            setRequiredPlayerRange(range);
+        }
+    }
+
+    /**
+     * Check if the spawner is stopped (no players in range).
+     * This is the inverse of isActivated().
+     * @return true if spawner is stopped (no players in range)
+     */
+    public Boolean getSpawnerStop() {
+        return !isActivated();
+    }
+
+    /**
+     * Set the spawner stopped state.
+     * This is the inverse of the activated state.
+     * @param stopped true to stop the spawner (no players in range)
+     */
+    public void setSpawnerStop(Boolean stopped) {
+        this.spawnerStop = stopped;
+    }
+
+    /**
+     * Get the spawn delay in milliseconds (internal format).
+     * For ticks, use getDelay().
+     * @return spawn delay in milliseconds
+     */
+    public long getSpawnDelay() {
+        return this.spawnDelay;
+    }
+
+    /**
+     * Syncs data from a physical CreatureSpawner block to this virtual SpawnerData.
+     * This method extracts relevant information from the spawner block and applies it
+     * to the virtual spawner, bridging the gap between Bukkit's block-based spawner
+     * and our virtual spawner system.
+     * 
+     * <p>Note: This is a one-way sync FROM the block TO SpawnerData. The virtual spawner
+     * maintains its own state independently after initial sync.</p>
+     * 
+     * @param blockSpawner The CreatureSpawner block to sync from
+     * @throws IllegalArgumentException if blockSpawner is null
+     */
+    public void syncFromBlock(@NotNull org.bukkit.block.CreatureSpawner blockSpawner) {
+        if (blockSpawner == null) {
+            throw new IllegalArgumentException("Block spawner cannot be null");
+        }
+
+        // Sync entity type
+        EntityType blockEntityType = blockSpawner.getSpawnedType();
+        if (blockEntityType != null && blockEntityType != EntityType.UNKNOWN) {
+            setSpawnedType(blockEntityType);
+        }
+
+        // Sync delay (convert from ticks to milliseconds)
+        int delayTicks = blockSpawner.getDelay();
+        if (delayTicks > 0) {
+            setDelay(delayTicks);
+        }
+
+        // Sync required player range
+        int range = blockSpawner.getRequiredPlayerRange();
+        if (range > 0) {
+            setRequiredPlayerRange(range);
+        }
+
+        // Note: isActivated() is managed by SpawnerRangeChecker, not synced from block
+        // The block's activation state is transient, while our virtual spawner
+        // has its own activation monitoring system
+
+        plugin.debug("Synced virtual spawner " + spawnerId + " from block spawner");
+    }
+
+    /**
+     * Applies this virtual spawner's data to a physical CreatureSpawner block.
+     * This is the reverse of syncFromBlock() - it pushes our virtual spawner's
+     * configuration to the physical block.
+     * 
+     * <p>This is useful when you need to update the visual representation of the
+     * spawner block to match the virtual spawner's current state.</p>
+     * 
+     * @param blockSpawner The CreatureSpawner block to apply data to
+     * @throws IllegalArgumentException if blockSpawner is null
+     */
+    public void applyToBlock(@NotNull org.bukkit.block.CreatureSpawner blockSpawner) {
+        if (blockSpawner == null) {
+            throw new IllegalArgumentException("Block spawner cannot be null");
+        }
+
+        // Apply entity type
+        if (this.entityType != null && this.entityType != EntityType.UNKNOWN) {
+            blockSpawner.setSpawnedType(this.entityType);
+        }
+
+        // Apply delay (our internal format to block's tick format)
+        blockSpawner.setDelay(getDelay());
+
+        // Apply required player range
+        blockSpawner.setRequiredPlayerRange(getRequiredPlayerRange());
+
+        // Update the block
+        blockSpawner.update(true, false);
+
+        plugin.debug("Applied virtual spawner " + spawnerId + " data to block spawner");
     }
 }
