@@ -18,7 +18,7 @@ dependencies {
     compileOnly("io.github.fabiozumbi12.RedProtect:RedProtect-Spigot:8.1.2") { exclude(group: "*") }
     implementation 'com.github.maiminhdung:zShop-API:9cb1b3e140'
     implementation 'com.github.GriefPrevention:GriefPrevention:18.0.0'
-    implementation 'com.github.IncrediblePlugins:LandsAPI:7.19.1'
+    implementation 'com.github.IncrediblePlugins:LandsAPI:7.19.15'
     implementation 'com.github.Xyness:SimpleClaimSystem:1.12.3.2'
     compileOnly 'dev.aurelium:auraskills-api-bukkit:2.3.8'
     compileOnly 'pl.minecodes.plots:plugin-api:4.6.2'
