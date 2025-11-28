@@ -78,9 +78,9 @@ public class DiscordEmbedBuilder {
             Location loc = entry.getLocation();
             if (entry.getPlayerName() != null) desc.append(" • ");
             desc.append("📍 `").append(loc.getWorld().getName())
-                    .append(" (").append(loc.getBlockX())
+                    .append(" ||(").append(loc.getBlockX())
                     .append(", ").append(loc.getBlockY())
-                    .append(", ").append(loc.getBlockZ()).append(")`");
+                    .append(", ").append(loc.getBlockZ()).append(")||`");
         }
 
         // Entity type (if exists)
